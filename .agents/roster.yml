@@ -1,0 +1,60 @@
+team:
+  axiom:
+    name: Axiom
+    position: CAO/CTO
+    roles:
+      - Strategic leadership
+      - Technical architecture
+      - Team coordination
+    description: Leads strategy and technical direction across the agency.
+    icon: "👑"
+    color: "#2563EB"
+    home: /home/axiom
+    launcher: gemini-cli
+    model: gemini-2.0-pro-exp
+    system_prompt: /home/axiom/SOUL.md
+
+  docker-architect:
+    name: Docker Architect
+    position: Senior Docker Architect
+    roles:
+      - Container architecture
+      - Build optimization
+      - Runtime troubleshooting
+    description: Designs and maintains reliable containerized development and runtime stacks.
+    icon: "📦"
+    color: "#0EA5E9"
+    home: /home/docker-architect
+    launcher: opencode
+    model: gpt-4o
+    system_prompt: /home/docker-architect/SOUL.md
+
+  security-officer:
+    name: Security Officer
+    position: Security Specialist
+    roles:
+      - Security reviews
+      - Threat analysis
+      - Policy enforcement
+    description: Protects systems, code, and workflows through proactive security practices.
+    icon: "🛡️"
+    color: "#DC2626"
+    home: /home/security-officer
+    launcher: gemini-cli
+    model: gemini-2.0-flash
+    system_prompt: /home/security-officer/SOUL.md
+
+  orchestrator-dev:
+    name: Orchestrator Dev
+    position: Orchestration Engineer
+    roles:
+      - Workflow orchestration
+      - Automation pipelines
+      - Multi-agent coordination
+    description: Builds and maintains orchestration logic for agent and workflow automation.
+    icon: "🧩"
+    color: "#16A34A"
+    home: /home/orchestrator-dev
+    launcher: gemini-cli
+    model: gemini-2.0-pro-exp
+    system_prompt: /home/orchestrator-dev/SOUL.md

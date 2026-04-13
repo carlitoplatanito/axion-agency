@@ -1,0 +1,21 @@
+{
+  "name": "axiom-agency",
+  "version": "1.0.0",
+  "description": "Agency of autonomous AI Agents",
+  "keywords": [
+    "ai",
+    "agents",
+    "bots",
+    "skills"
+  ],
+  "license": "ISC",
+  "author": "Carlito Platanito <carlito@cloutops.com>",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "skills": "^1.5.0"
+  }
+}
