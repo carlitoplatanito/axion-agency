@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  hq:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: axiom-hq
+    # By running interactively and mounting the host directory,
+    # we can develop the orchestrator directly inside the container environment.
+    volumes:
+      - ./:/app
+      # We use named volumes for agent homes and shared spaces to persist
+      # their data across container restarts without messing with macOS host permissions.
+      - agent_homes:/home
+      - agent_shared:/shared
+    environment:
+      - NODE_ENV=development
+    tty: true
+
+volumes:
+  agent_homes:
+    description: "Persistent storage for individual agent home directories"
+  agent_shared:
+    description: "Persistent storage for cross-agent communication folders"
