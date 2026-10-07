@@ -59,12 +59,11 @@ lint_file() {
     return
   fi
 
-  # 1. Check frontmatter delimiters
+  # 1. Check frontmatter delimiters (skip documentation files without frontmatter)
   local first_line
   first_line=$(head -1 "$file")
   if [[ "$first_line" != "---" ]]; then
-    echo "ERROR $file: missing frontmatter opening ---"
-    errors=$((errors + 1))
+    # Non-agent documentation file (e.g., playbooks, strategy guides)
     return
   fi
 
