@@ -573,7 +573,7 @@ main() {
     export AGENCY_CONVERT_OUT_DIR="$parallel_out_dir"
     export AGENCY_CONVERT_SCRIPT="$SCRIPT_DIR/convert.sh"
     export AGENCY_CONVERT_OUT="$OUT_DIR"
-    printf '%s\n' "${parallel_tools[@]}" | xargs -P "$parallel_jobs" -I {} sh -c '"$AGENCY_CONVERT_SCRIPT" --tool "{}" --out "$AGENCY_CONVERT_OUT" > "$AGENCY_CONVERT_OUT_DIR/{}" 2>&1'
+    printf '%s\n' "${parallel_tools[@]}" | xargs -P "$parallel_jobs" -I {} sh -c '"$1" --tool "$2" --out "$3" > "$4/$2" 2>&1' _ "$AGENCY_CONVERT_SCRIPT" {} "$AGENCY_CONVERT_OUT" "$AGENCY_CONVERT_OUT_DIR"
     for t in "${parallel_tools[@]}"; do
       [[ -f "$parallel_out_dir/$t" ]] && cat "$parallel_out_dir/$t"
     done
