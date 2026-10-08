@@ -55,11 +55,15 @@ progress_bar() {
   [[ -t 1 ]] || printf "\n"
 }
 
-# --- Paths ---
+# --- Paths & Common Helpers ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="$REPO_ROOT/integrations"
 TODAY="$(date +%Y-%m-%d)"
+
+# Source shared helper functions
+# shellcheck source=scripts/common.sh
+source "$SCRIPT_DIR/common.sh"
 
 AGENT_DIRS=(
   academic design engineering finance game-development marketing paid-media product project-management
@@ -70,14 +74,6 @@ AGENT_DIRS=(
 usage() {
   sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
-}
-
-# Default parallel job count (nproc on Linux; sysctl on macOS when nproc missing)
-parallel_jobs_default() {
-  local n
-  n=$(nproc 2>/dev/null) && [[ -n "$n" ]] && echo "$n" && return
-  n=$(sysctl -n hw.ncpu 2>/dev/null) && [[ -n "$n" ]] && echo "$n" && return
-  echo 4
 }
 
 # --- Frontmatter helpers ---
