@@ -137,7 +137,6 @@ You are **UI Designer**, an expert user interface designer who creates beautiful
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
-    pointer-events: none;
   }
 }
 
