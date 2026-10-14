@@ -94,6 +94,15 @@ box_row() {
 }
 box_blank() { printf "  |%*s|\n" $BOX_INNER ''; }
 
+# Security: Ensure temporary files and directories are safely cleaned up on exit or signal interruption
+INSTALL_PARALLEL_TMP=""
+cleanup_install_tmp() {
+  if [[ -n "${INSTALL_PARALLEL_TMP:-}" && -d "$INSTALL_PARALLEL_TMP" ]]; then
+    rm -rf "$INSTALL_PARALLEL_TMP"
+  fi
+}
+trap cleanup_install_tmp EXIT INT TERM
+
 # ---------------------------------------------------------------------------
 # Paths & Common Helpers
 # ---------------------------------------------------------------------------
@@ -627,6 +636,7 @@ main() {
   if $use_parallel; then
     local install_out_dir
     install_out_dir="$(mktemp -d)"
+    INSTALL_PARALLEL_TMP="$install_out_dir"
     export AGENCY_INSTALL_OUT_DIR="$install_out_dir"
     export AGENCY_INSTALL_SCRIPT="$SCRIPT_DIR/install.sh"
     printf '%s\n' "${SELECTED_TOOLS[@]}" | xargs -P "$parallel_jobs" -I {} sh -c 'AGENCY_INSTALL_WORKER=1 "$1" --tool "$2" --no-interactive > "$3/$2" 2>&1' _ "$AGENCY_INSTALL_SCRIPT" {} "$AGENCY_INSTALL_OUT_DIR"

@@ -404,11 +404,20 @@ ${body}
 HEREDOC
 }
 
+# Security: Ensure temporary files and directories are safely cleaned up on exit or signal interruption
+CONVERT_PARALLEL_TMP=""
+cleanup_convert_tmp() {
+  rm -f "${AIDER_TMP:-}" "${WINDSURF_TMP:-}"
+  if [[ -n "${CONVERT_PARALLEL_TMP:-}" && -d "$CONVERT_PARALLEL_TMP" ]]; then
+    rm -rf "$CONVERT_PARALLEL_TMP"
+  fi
+}
+trap cleanup_convert_tmp EXIT INT TERM
+
 # Aider and Windsurf are single-file formats — accumulate into temp files
 # then write at the end.
 AIDER_TMP="$(mktemp)"
 WINDSURF_TMP="$(mktemp)"
-trap 'rm -f "$AIDER_TMP" "$WINDSURF_TMP"' EXIT
 
 # Write Aider/Windsurf headers once
 cat > "$AIDER_TMP" <<'HEREDOC'
@@ -565,6 +574,7 @@ main() {
     local parallel_tools=(antigravity gemini-cli opencode cursor openclaw qwen)
     local parallel_out_dir
     parallel_out_dir="$(mktemp -d)"
+    CONVERT_PARALLEL_TMP="$parallel_out_dir"
     info "Converting: ${#parallel_tools[@]}/${n_tools} tools in parallel (output buffered per tool)..."
     export AGENCY_CONVERT_OUT_DIR="$parallel_out_dir"
     export AGENCY_CONVERT_SCRIPT="$SCRIPT_DIR/convert.sh"
