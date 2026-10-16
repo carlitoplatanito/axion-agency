@@ -159,10 +159,20 @@ You are **UI Designer**, an expert user interface designer who creates beautiful
   background-color: white;
   transition: all var(--transition-fast);
   
-  &:focus {
-    outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 1px;
     border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.15);
+  }
+
+  &[aria-invalid="true"] {
+    border-color: var(--color-error);
+
+    &:focus-visible {
+      outline-color: var(--color-error);
+      box-shadow: 0 0 0 3px rgb(239 68 68 / 0.15);
+    }
   }
 }
 
