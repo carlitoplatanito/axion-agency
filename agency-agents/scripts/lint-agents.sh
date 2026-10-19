@@ -29,26 +29,8 @@ AGENT_DIRS=(
   testing
 )
 
-REQUIRED_FRONTMATTER=("name" "description" "color")
-RECOMMENDED_SECTIONS=("Identity" "Core Mission" "Critical Rules")
-
 errors=0
 warnings=0
-
-classify_header_target() {
-  local header_lower="$1"
-
-  if [[ "$header_lower" =~ identity ]] ||
-     [[ "$header_lower" =~ learning.*memory ]] ||
-     [[ "$header_lower" =~ communication ]] ||
-     [[ "$header_lower" =~ style ]] ||
-     [[ "$header_lower" =~ critical.rule ]] ||
-     [[ "$header_lower" =~ rules.you.must.follow ]]; then
-    printf 'soul'
-  else
-    printf 'agents'
-  fi
-}
 
 lint_file() {
   local file="$1"
@@ -59,76 +41,80 @@ lint_file() {
     return
   fi
 
-  # 1. Check frontmatter delimiters (skip documentation files without frontmatter)
   local first_line
-  first_line=$(head -1 "$file")
+  read -r first_line < "$file" || true
   if [[ "$first_line" != "---" ]]; then
     # Non-agent documentation file (e.g., playbooks, strategy guides)
     return
   fi
 
-  # Extract frontmatter (between first and second ---)
-  local frontmatter
-  frontmatter=$(awk 'NR==1{next} /^---$/{exit} {print}' "$file")
+  local out
+  out="$(awk -v file="$file" '
+    BEGIN {
+      fm = 0
+      has_name = 0
+      has_desc = 0
+      has_color = 0
+      has_identity = 0
+      has_mission = 0
+      has_rules = 0
+      words = 0
+      soul_headers = 0
+      agents_headers = 0
+    }
+    /^---$/ {
+      fm++
+      next
+    }
+    fm == 1 {
+      if ($0 ~ /^name:/) has_name = 1
+      if ($0 ~ /^description:/) has_desc = 1
+      if ($0 ~ /^color:/) has_color = 1
+    }
+    fm >= 2 {
+      words += NF
+      low = tolower($0)
+      if (low ~ /identity/) has_identity = 1
+      if (low ~ /core mission/) has_mission = 1
+      if (low ~ /critical rules/) has_rules = 1
 
-  if [[ -z "$frontmatter" ]]; then
-    echo "ERROR $file: empty or malformed frontmatter"
-    errors=$((errors + 1))
-    return
-  fi
+      if ($0 ~ /^##[[:space:]]/) {
+        if (low ~ /identity/ || low ~ /learning.*memory/ || low ~ /communication/ || low ~ /style/ || low ~ /critical.rule/ || low ~ /rules.you.must.follow/) {
+          soul_headers++
+        } else {
+          agents_headers++
+        }
+      }
+    }
+    END {
+      if (fm < 2) {
+        print "ERR:empty or malformed frontmatter"
+        exit
+      }
+      if (!has_name) print "ERR:missing frontmatter field \x27name\x27"
+      if (!has_desc) print "ERR:missing frontmatter field \x27description\x27"
+      if (!has_color) print "ERR:missing frontmatter field \x27color\x27"
 
-  # 2. Check required frontmatter fields
-  for field in "${REQUIRED_FRONTMATTER[@]}"; do
-    if ! echo "$frontmatter" | grep -qE "^${field}:"; then
-      echo "ERROR $file: missing frontmatter field '${field}'"
+      if (!has_identity) print "WARN:missing recommended section \x27Identity\x27"
+      if (!has_mission) print "WARN:missing recommended section \x27Core Mission\x27"
+      if (!has_rules) print "WARN:missing recommended section \x27Critical Rules\x27"
+
+      if (words < 50) print "WARN:body seems very short (< 50 words)"
+      if (soul_headers == 0) print "WARN:no section headers map to SOUL.md in convert.sh"
+      if (agents_headers == 0) print "WARN:no section headers map to AGENTS.md in convert.sh"
+    }
+  ' "$file")"
+
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    if [[ "$line" == ERR:* ]]; then
+      echo "ERROR $file: ${line#ERR:}"
       errors=$((errors + 1))
-    fi
-  done
-
-  # 3. Check recommended sections (warn only)
-  local body
-  body=$(awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$file")
-
-  for section in "${RECOMMENDED_SECTIONS[@]}"; do
-    if ! echo "$body" | grep -qi "$section"; then
-      echo "WARN  $file: missing recommended section '${section}'"
+    elif [[ "$line" == WARN:* ]]; then
+      echo "WARN  $file: ${line#WARN:}"
       warnings=$((warnings + 1))
     fi
-  done
-
-  # 4. Check file has meaningful content (awk strips wc's leading whitespace on macOS/BSD)
-  local word_count
-  word_count=$(echo "$body" | wc -w | awk '{print $1}')
-  if [[ "${word_count:-0}" -lt 50 ]]; then
-    echo "WARN  $file: body seems very short (< 50 words)"
-    warnings=$((warnings + 1))
-  fi
-
-  local soul_headers=0
-  local agents_headers=0
-  while IFS= read -r line; do
-    if [[ "$line" =~ ^##[[:space:]] ]]; then
-      local header_lower
-      header_lower=$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')
-      local target
-      target=$(classify_header_target "$header_lower")
-      if [[ "$target" == "soul" ]]; then
-        soul_headers=$((soul_headers + 1))
-      else
-        agents_headers=$((agents_headers + 1))
-      fi
-    fi
-  done <<< "$body"
-
-  if [[ $soul_headers -eq 0 ]]; then
-    echo "WARN  $file: no section headers map to SOUL.md in convert.sh"
-    warnings=$((warnings + 1))
-  fi
-
-  if [[ $agents_headers -eq 0 ]]; then
-    echo "WARN  $file: no section headers map to AGENTS.md in convert.sh"
-    warnings=$((warnings + 1))
-  fi
+  done <<< "$out"
 }
 
 # Collect files to lint

@@ -78,117 +78,129 @@ usage() {
 
 # --- Frontmatter helpers ---
 
-# Extract a single field value from YAML frontmatter block.
-# Usage: get_field <field> <file>
-get_field() {
-  local field="$1" file="$2"
-  awk -v f="$field" '
-    /^---$/ { fm++; next }
-    fm == 1 && $0 ~ "^" f ": " { sub("^" f ": ", ""); print; exit }
-  ' "$file"
-}
-
-# Strip the leading frontmatter block and return only the body.
-# Usage: get_body <file>
-get_body() {
-  awk 'BEGIN{fm=0} /^---$/{fm++; next} fm>=2{print}' "$1"
-}
-
 # Convert a human-readable agent name to a lowercase kebab-case slug.
 # "Frontend Developer" → "frontend-developer"
+# Performance optimized: single tr + sed pipeline instead of 5 chained subshells.
 slugify() {
-  echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//'
+  local s
+  s="$(tr '[:upper:]' '[:lower:]' <<< "$1")"
+  sed -E 's/[^a-z0-9]+/-/g; s/^-|-$//g' <<< "$s"
+}
+
+# Parse all agent frontmatter fields and body in a single pass using awk.
+# Output is null-delimited to preserve special characters and multiline body strings.
+parse_agent_file() {
+  local file="$1"
+  NAME="" DESC="" COLOR="" TOOLS="" EMOJI="" VIBE="" BODY="" SLUG=""
+
+  local first_line
+  read -r first_line < "$file" || true
+  [[ "$first_line" == "---" ]] || return 1
+
+  local res=0
+  {
+    IFS= read -r -d '' NAME && \
+    IFS= read -r -d '' DESC && \
+    IFS= read -r -d '' COLOR && \
+    IFS= read -r -d '' TOOLS && \
+    IFS= read -r -d '' EMOJI && \
+    IFS= read -r -d '' VIBE && \
+    IFS= read -r -d '' BODY
+  } < <(awk '
+    BEGIN { fm = 0; body = ""; body_started = 0 }
+    /^---$/ { fm++; next }
+    fm == 1 {
+      if ($0 ~ /^name:[[:space:]]*/) { name = $0; sub(/^name:[[:space:]]*/, "", name) }
+      else if ($0 ~ /^description:[[:space:]]*/) { desc = $0; sub(/^description:[[:space:]]*/, "", desc) }
+      else if ($0 ~ /^color:[[:space:]]*/) { color = $0; sub(/^color:[[:space:]]*/, "", color) }
+      else if ($0 ~ /^tools:[[:space:]]*/) { tools = $0; sub(/^tools:[[:space:]]*/, "", tools) }
+      else if ($0 ~ /^emoji:[[:space:]]*/) { emoji = $0; sub(/^emoji:[[:space:]]*/, "", emoji) }
+      else if ($0 ~ /^vibe:[[:space:]]*/) { vibe = $0; sub(/^vibe:[[:space:]]*/, "", vibe) }
+    }
+    fm >= 2 {
+      if (body_started) body = body "\n" $0; else { body = $0; body_started = 1 }
+    }
+    END {
+      if (name != "") {
+        printf "%s\0%s\0%s\0%s\0%s\0%s\0%s\0", name, desc, color, tools, emoji, vibe, body
+      }
+    }
+  ' "$file") || res=$?
+
+  [[ -n "$NAME" ]] || return 1
+  SLUG="$(slugify "$NAME")"
 }
 
 # --- Per-tool converters ---
 
 convert_antigravity() {
-  local file="$1"
-  local name description slug outdir outfile body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  slug="agency-$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outdir="$OUT_DIR/antigravity/$slug"
-  outfile="$outdir/SKILL.md"
+  local outdir="$OUT_DIR/antigravity/agency-$SLUG"
   mkdir -p "$outdir"
 
-  # Antigravity SKILL.md format mirrors community skills in ~/.gemini/antigravity/skills/
-  cat > "$outfile" <<HEREDOC
+  cat > "$outdir/SKILL.md" <<HEREDOC
 ---
-name: ${slug}
-description: ${description}
+name: agency-${SLUG}
+description: ${DESC}
 risk: low
 source: community
 date_added: '${TODAY}'
 ---
-${body}
+${BODY}
 HEREDOC
 }
 
 convert_gemini_cli() {
-  local file="$1"
-  local name description slug outdir outfile body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outdir="$OUT_DIR/gemini-cli/skills/$slug"
-  outfile="$outdir/SKILL.md"
+  local outdir="$OUT_DIR/gemini-cli/skills/$SLUG"
   mkdir -p "$outdir"
 
-  # Gemini CLI skill format: minimal frontmatter (name + description only)
-  cat > "$outfile" <<HEREDOC
+  cat > "$outdir/SKILL.md" <<HEREDOC
 ---
-name: ${slug}
-description: ${description}
+name: ${SLUG}
+description: ${DESC}
 ---
-${body}
+${BODY}
 HEREDOC
 }
 
 # Map known color names and normalize to OpenCode-safe #RRGGBB values.
 resolve_opencode_color() {
   local c="$1"
+  c="${c#"${c%%[![:space:]]*}"}"
+  c="${c%"${c##*[![:space:]]}"}"
+
   local mapped
-
-  c="$(printf '%s' "$c" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')"
-
   case "$c" in
-    cyan)           mapped="#00FFFF" ;;
-    blue)           mapped="#3498DB" ;;
-    green)          mapped="#2ECC71" ;;
-    red)            mapped="#E74C3C" ;;
-    purple)         mapped="#9B59B6" ;;
-    orange)         mapped="#F39C12" ;;
-    teal)           mapped="#008080" ;;
-    indigo)         mapped="#6366F1" ;;
-    pink)           mapped="#E84393" ;;
-    gold)           mapped="#EAB308" ;;
-    amber)          mapped="#F59E0B" ;;
-    neon-green)     mapped="#10B981" ;;
-    neon-cyan)      mapped="#06B6D4" ;;
-    metallic-blue)  mapped="#3B82F6" ;;
-    yellow)         mapped="#EAB308" ;;
-    violet)         mapped="#8B5CF6" ;;
-    rose)           mapped="#F43F5E" ;;
-    lime)           mapped="#84CC16" ;;
-    gray)           mapped="#6B7280" ;;
-    fuchsia)        mapped="#D946EF" ;;
-    *)              mapped="$c" ;;
+    cyan|CYAN)                    mapped="#00FFFF" ;;
+    blue|BLUE)                    mapped="#3498DB" ;;
+    green|GREEN)                  mapped="#2ECC71" ;;
+    red|RED)                      mapped="#E74C3C" ;;
+    purple|PURPLE)                mapped="#9B59B6" ;;
+    orange|ORANGE)                mapped="#F39C12" ;;
+    teal|TEAL)                    mapped="#008080" ;;
+    indigo|INDIGO)                mapped="#6366F1" ;;
+    pink|PINK)                    mapped="#E84393" ;;
+    gold|GOLD)                    mapped="#EAB308" ;;
+    amber|AMBER)                  mapped="#F59E0B" ;;
+    neon-green|NEON-GREEN)        mapped="#10B981" ;;
+    neon-cyan|NEON-CYAN)          mapped="#06B6D4" ;;
+    metallic-blue|METALLIC-BLUE)  mapped="#3B82F6" ;;
+    yellow|YELLOW)                mapped="#EAB308" ;;
+    violet|VIOLET)                mapped="#8B5CF6" ;;
+    rose|ROSE)                    mapped="#F43F5E" ;;
+    lime|LIME)                    mapped="#84CC16" ;;
+    gray|GRAY)                    mapped="#6B7280" ;;
+    fuchsia|FUCHSIA)              mapped="#D946EF" ;;
+    *)                            mapped="$c" ;;
   esac
 
   if [[ "$mapped" =~ ^#[0-9a-fA-F]{6}$ ]]; then
-    printf '#%s\n' "$(printf '%s' "${mapped#\#}" | tr '[:lower:]' '[:upper:]')"
+    local hex="${mapped#\#}"
+    printf '#%s\n' "$(tr '[:lower:]' '[:upper:]' <<< "$hex")"
     return
   fi
 
   if [[ "$mapped" =~ ^[0-9a-fA-F]{6}$ ]]; then
-    printf '#%s\n' "$(printf '%s' "$mapped" | tr '[:lower:]' '[:upper:]')"
+    printf '#%s\n' "$(tr '[:lower:]' '[:upper:]' <<< "$mapped")"
     return
   fi
 
@@ -196,211 +208,118 @@ resolve_opencode_color() {
 }
 
 convert_opencode() {
-  local file="$1"
-  local name description color slug outfile body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  color="$(resolve_opencode_color "$(get_field "color" "$file")")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outfile="$OUT_DIR/opencode/agents/${slug}.md"
+  local color; color="$(resolve_opencode_color "$COLOR")"
+  local outfile="$OUT_DIR/opencode/agents/${SLUG}.md"
   mkdir -p "$OUT_DIR/opencode/agents"
 
-  # OpenCode agent format: .md with YAML frontmatter in .opencode/agents/.
-  # Named colors are resolved to hex via resolve_opencode_color().
   cat > "$outfile" <<HEREDOC
 ---
-name: ${name}
-description: ${description}
+name: ${NAME}
+description: ${DESC}
 mode: subagent
 color: '${color}'
 ---
-${body}
+${BODY}
 HEREDOC
 }
 
 convert_cursor() {
-  local file="$1"
-  local name description slug outfile body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outfile="$OUT_DIR/cursor/rules/${slug}.mdc"
+  local outfile="$OUT_DIR/cursor/rules/${SLUG}.mdc"
   mkdir -p "$OUT_DIR/cursor/rules"
 
-  # Cursor .mdc format: description + globs + alwaysApply frontmatter
   cat > "$outfile" <<HEREDOC
 ---
-description: ${description}
+description: ${DESC}
 globs: ""
 alwaysApply: false
 ---
-${body}
+${BODY}
 HEREDOC
 }
 
 convert_openclaw() {
-  local file="$1"
-  local name description slug outdir body
-  local soul_content="" agents_content=""
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outdir="$OUT_DIR/openclaw/$slug"
+  local outdir="$OUT_DIR/openclaw/$SLUG"
   mkdir -p "$outdir"
+  local soul_file="$outdir/SOUL.md"
+  local agents_file="$outdir/AGENTS.md"
 
-  # Split body sections into SOUL.md (persona) vs AGENTS.md (operations)
-  # by matching ## header keywords. Unmatched sections go to AGENTS.md.
-  #
-  # SOUL keywords: identity, learning & memory, communication, style,
-  #   critical rules, rules you must follow
-  # AGENTS keywords: everything else (mission, deliverables, workflow, etc.)
+  # Single-pass awk splitting for SOUL.md vs AGENTS.md (avoids thousands of line-by-line bash subshells).
+  awk -v soul_file="$soul_file" -v agents_file="$agents_file" '
+    BEGIN { target = "agents" }
+    /^##[[:space:]]/ {
+      h = tolower($0)
+      if (h ~ /identity/ || h ~ /learning.*memory/ || h ~ /communication/ || h ~ /style/ || h ~ /critical.rule/ || h ~ /rules.you.must.follow/) {
+        target = "soul"
+      } else {
+        target = "agents"
+      }
+    }
+    {
+      if (target == "soul") {
+        print $0 > soul_file
+      } else {
+        print $0 > agents_file
+      }
+    }
+  ' <<< "$BODY"
 
-  local current_target="agents"  # default bucket
-  local current_section=""
+  touch "$soul_file" "$agents_file"
 
-  while IFS= read -r line; do
-    # Detect ## headers (with or without emoji prefixes)
-    if [[ "$line" =~ ^##[[:space:]] ]]; then
-      # Flush previous section
-      if [[ -n "$current_section" ]]; then
-        if [[ "$current_target" == "soul" ]]; then
-          soul_content+="$current_section"
-        else
-          agents_content+="$current_section"
-        fi
-      fi
-      current_section=""
-
-      # Classify this header by keyword (case-insensitive)
-      local header_lower
-      header_lower="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
-
-      if [[ "$header_lower" =~ identity ]] ||
-         [[ "$header_lower" =~ learning.*memory ]] ||
-         [[ "$header_lower" =~ communication ]] ||
-         [[ "$header_lower" =~ style ]] ||
-         [[ "$header_lower" =~ critical.rule ]] ||
-         [[ "$header_lower" =~ rules.you.must.follow ]]; then
-        current_target="soul"
-      else
-        current_target="agents"
-      fi
-    fi
-
-    current_section+="$line"$'\n'
-  done <<< "$body"
-
-  # Flush final section
-  if [[ -n "$current_section" ]]; then
-    if [[ "$current_target" == "soul" ]]; then
-      soul_content+="$current_section"
-    else
-      agents_content+="$current_section"
-    fi
-  fi
-
-  # Write SOUL.md — persona, tone, boundaries
-  cat > "$outdir/SOUL.md" <<HEREDOC
-${soul_content}
-HEREDOC
-
-  # Write AGENTS.md — mission, deliverables, workflow
-  cat > "$outdir/AGENTS.md" <<HEREDOC
-${agents_content}
-HEREDOC
-
-  # Write IDENTITY.md — emoji + name + vibe from frontmatter, fallback to description
-  local emoji vibe
-  emoji="$(get_field "emoji" "$file")"
-  vibe="$(get_field "vibe" "$file")"
-
-  if [[ -n "$emoji" && -n "$vibe" ]]; then
+  if [[ -n "$EMOJI" && -n "$VIBE" ]]; then
     cat > "$outdir/IDENTITY.md" <<HEREDOC
-# ${emoji} ${name}
-${vibe}
+# ${EMOJI} ${NAME}
+${VIBE}
 HEREDOC
   else
     cat > "$outdir/IDENTITY.md" <<HEREDOC
-# ${name}
-${description}
+# ${NAME}
+${DESC}
 HEREDOC
   fi
 }
 
 convert_qwen() {
-  local file="$1"
-  local name description tools slug outfile body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  tools="$(get_field "tools" "$file")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outfile="$OUT_DIR/qwen/agents/${slug}.md"
+  local outfile="$OUT_DIR/qwen/agents/${SLUG}.md"
   mkdir -p "$(dirname "$outfile")"
 
-  # Qwen Code SubAgent format: .md with YAML frontmatter in ~/.qwen/agents/
-  # name and description required; tools optional (only if present in source)
-  if [[ -n "$tools" ]]; then
+  if [[ -n "$TOOLS" ]]; then
     cat > "$outfile" <<HEREDOC
 ---
-name: ${slug}
-description: ${description}
-tools: ${tools}
+name: ${SLUG}
+description: ${DESC}
+tools: ${TOOLS}
 ---
-${body}
+${BODY}
 HEREDOC
   else
     cat > "$outfile" <<HEREDOC
 ---
-name: ${slug}
-description: ${description}
+name: ${SLUG}
+description: ${DESC}
 ---
-${body}
+${BODY}
 HEREDOC
   fi
 }
 
 convert_kimi() {
-  local file="$1"
-  local name description slug outdir agent_file body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  slug="$(slugify "$name")"
-  body="$(get_body "$file")"
-
-  outdir="$OUT_DIR/kimi/$slug"
-  agent_file="$outdir/agent.yaml"
+  local outdir="$OUT_DIR/kimi/$SLUG"
   mkdir -p "$outdir"
 
-  # Kimi Code CLI agent format: YAML with separate system prompt file
-  # Uses extend: default to inherit Kimi's default toolset
-  cat > "$agent_file" <<HEREDOC
+  cat > "$outdir/agent.yaml" <<HEREDOC
 version: 1
 agent:
-  name: ${slug}
+  name: ${SLUG}
   extend: default
   system_prompt_path: ./system.md
 HEREDOC
 
-  # Write system prompt to separate file
   cat > "$outdir/system.md" <<HEREDOC
-# ${name}
+# ${NAME}
 
-${description}
+${DESC}
 
-${body}
+${BODY}
 HEREDOC
 }
 
@@ -435,41 +354,27 @@ cat > "$WINDSURF_TMP" <<'HEREDOC'
 HEREDOC
 
 accumulate_aider() {
-  local file="$1"
-  local name description body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  body="$(get_body "$file")"
-
   cat >> "$AIDER_TMP" <<HEREDOC
 
 ---
 
-## ${name}
+## ${NAME}
 
-> ${description}
+> ${DESC}
 
-${body}
+${BODY}
 HEREDOC
 }
 
 accumulate_windsurf() {
-  local file="$1"
-  local name description body
-
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
-  body="$(get_body "$file")"
-
   cat >> "$WINDSURF_TMP" <<HEREDOC
 
 ================================================================================
-## ${name}
-${description}
+## ${NAME}
+${DESC}
 ================================================================================
 
-${body}
+${BODY}
 
 HEREDOC
 }
@@ -484,30 +389,39 @@ run_conversions() {
     local dirpath="$REPO_ROOT/$dir"
     [[ -d "$dirpath" ]] || continue
 
-    while IFS= read -r -d '' file; do
-      # Skip files without frontmatter (non-agent docs like QUICKSTART.md)
-      local first_line
-      first_line="$(head -1 "$file")"
-      [[ "$first_line" == "---" ]] || continue
+    local files=()
+    while IFS= read -r -d '' file || [[ -n "$file" ]]; do
+      files+=("$file")
+    done < <(find "$dirpath" -name "*.md" -type f -print0 | sort -z)
 
-      local name
-      name="$(get_field "name" "$file")"
-      [[ -n "$name" ]] || continue
+    for file in "${files[@]}"; do
+      parse_agent_file "$file" || continue
 
       case "$tool" in
-        antigravity) convert_antigravity "$file" ;;
-        gemini-cli)  convert_gemini_cli  "$file" ;;
-        opencode)    convert_opencode    "$file" ;;
-        cursor)      convert_cursor      "$file" ;;
-        openclaw)    convert_openclaw    "$file" ;;
-        qwen)        convert_qwen        "$file" ;;
-        kimi)        convert_kimi        "$file" ;;
-        aider)       accumulate_aider    "$file" ;;
-        windsurf)    accumulate_windsurf "$file" ;;
+        antigravity) convert_antigravity ;;
+        gemini-cli)  convert_gemini_cli  ;;
+        opencode)    convert_opencode    ;;
+        cursor)      convert_cursor      ;;
+        openclaw)    convert_openclaw    ;;
+        qwen)        convert_qwen        ;;
+        kimi)        convert_kimi        ;;
+        aider)       accumulate_aider    ;;
+        windsurf)    accumulate_windsurf ;;
+        all)
+          convert_antigravity
+          convert_gemini_cli
+          convert_opencode
+          convert_cursor
+          convert_openclaw
+          convert_qwen
+          convert_kimi
+          accumulate_aider
+          accumulate_windsurf
+          ;;
       esac
 
-      (( count++ )) || true
-    done < <(find "$dirpath" -name "*.md" -type f -print0 | sort -z)
+      (( count += 1 ))
+    done
   done
 
   echo "$count"
@@ -583,12 +497,26 @@ main() {
       count="$(run_conversions "$t")"
       total=$(( total + count ))
       info "Converted $count agents for $t"
-      (( idx++ )) || true
+      (( idx += 1 ))
     done
+  elif [[ "$tool" == "all" ]]; then
+    header "Converting: all tools in single pass"
+    local count
+    count="$(run_conversions "all")"
+    mkdir -p "$OUT_DIR/gemini-cli"
+    cat > "$OUT_DIR/gemini-cli/gemini-extension.json" <<'HEREDOC'
+{
+  "name": "agency-agents",
+  "version": "1.0.0"
+}
+HEREDOC
+    info "Wrote gemini-extension.json"
+    total=$(( count * n_tools ))
+    info "Converted $count agents for $n_tools tools"
   else
     local i=0
     for t in "${tools_to_run[@]}"; do
-      (( i++ )) || true
+      (( i += 1 ))
       progress_bar "$i" "$n_tools"
       printf "\n"
       header "Converting: $t ($i/$n_tools)"
