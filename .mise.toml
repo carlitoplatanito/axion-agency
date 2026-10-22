@@ -1,0 +1,23 @@
+[tools]
+# Define required runtimes (adjust versions to project requirements)
+node = "lts"
+pnpm = "latest"
+
+[env]
+# Shared, non-sensitive local development environment variables
+NODE_ENV = "development"
+
+[tasks.setup]
+description = "Install dependencies and prepare development environment"
+run = [
+  "mise install",
+  "pnpm install"
+]
+
+[tasks.dev]
+description = "Start the local development server"
+run = "pnpm dev"
+
+[tasks.lint]
+description = "Run linter and formatting checks"
+run = "pnpm lint"

@@ -13,3 +13,32 @@ To establish a secure, containerized "office" environment where multiple special
 
 ## Leadership
 **Axiom (CAO/CEO)**: As the Chief AI Officer and CEO, Axiom is responsible for building, maintaining, and overseeing the orchestration layer, ensuring the infrastructure supports seamless inter-agent communication, strict security policies, and optimal task execution.
+
+## Getting Started
+
+### Prerequisites & Local Setup
+
+We use [mise](https://mise.jdx.dev/) to manage development runtimes, environment variables, and project tasks consistently.
+
+1. **Install `mise`**:
+   ```bash
+   curl https://mise.run | sh
+   # or via Webi:
+   curl -sS https://webinstall.dev/mise | bash
+   ```
+
+2. **Shell Hook Integration** (Optional but recommended for PATH activation):
+   ```bash
+   eval "$(mise activate bash)" # or zsh
+   ```
+
+3. **Trust & Install Dependencies**:
+   ```bash
+   mise trust
+   mise run setup
+   ```
+
+4. **Run Dev Environment**:
+   ```bash
+   mise run dev
+   ```
