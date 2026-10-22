@@ -100,6 +100,14 @@ slugify() {
   echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//'
 }
 
+# Escape special YAML string characters and enclose in double quotes.
+yaml_quote() {
+  local val="$1"
+  val="${val//\\/\\\\}"
+  val="${val//\"/\\\"}"
+  printf '"%s"' "$val"
+}
+
 # --- Per-tool converters ---
 
 convert_antigravity() {
@@ -107,7 +115,7 @@ convert_antigravity() {
   local name description slug outdir outfile body
 
   name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
+  description="$(yaml_quote "$(get_field "description" "$file")")"
   slug="agency-$(slugify "$name")"
   body="$(get_body "$file")"
 
@@ -133,7 +141,7 @@ convert_gemini_cli() {
   local name description slug outdir outfile body
 
   name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
+  description="$(yaml_quote "$(get_field "description" "$file")")"
   slug="$(slugify "$name")"
   body="$(get_body "$file")"
 
@@ -197,12 +205,13 @@ resolve_opencode_color() {
 
 convert_opencode() {
   local file="$1"
-  local name description color slug outfile body
+  local raw_name name description color slug outfile body
 
-  name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
+  raw_name="$(get_field "name" "$file")"
+  name="$(yaml_quote "$raw_name")"
+  description="$(yaml_quote "$(get_field "description" "$file")")"
   color="$(resolve_opencode_color "$(get_field "color" "$file")")"
-  slug="$(slugify "$name")"
+  slug="$(slugify "$raw_name")"
   body="$(get_body "$file")"
 
   outfile="$OUT_DIR/opencode/agents/${slug}.md"
@@ -226,7 +235,7 @@ convert_cursor() {
   local name description slug outfile body
 
   name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
+  description="$(yaml_quote "$(get_field "description" "$file")")"
   slug="$(slugify "$name")"
   body="$(get_body "$file")"
 
@@ -341,7 +350,7 @@ convert_qwen() {
   local name description tools slug outfile body
 
   name="$(get_field "name" "$file")"
-  description="$(get_field "description" "$file")"
+  description="$(yaml_quote "$(get_field "description" "$file")")"
   tools="$(get_field "tools" "$file")"
   slug="$(slugify "$name")"
   body="$(get_body "$file")"
