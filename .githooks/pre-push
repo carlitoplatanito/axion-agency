@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+if command -v git-bug >/dev/null 2>&1; then
+  git bug push origin
+fi

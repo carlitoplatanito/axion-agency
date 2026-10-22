@@ -42,3 +42,14 @@ We use [mise](https://mise.jdx.dev/) to manage development runtimes, environment
    ```bash
    mise run dev
    ```
+
+## Issue Tracking
+
+We use embedded, distributed issue tracking via `git-bug`. Issues are stored natively in Git without polluting working trees or commit history.
+
+- **Create an issue**: `git bug bug new -t "Title" -m "Message"` (or interactively `git bug new`)
+- **List issues**: `git bug bug` (or `git bug ls`)
+- **Comment on an issue**: `git bug bug comment new <id> -m "Comment"`
+- **Launch Web UI**: `git bug webui` (opens http://localhost:3000)
+
+For full details on `git-bug` setup and workflow automation, see [CONTRIBUTING.md](CONTRIBUTING.md).
