@@ -11,7 +11,8 @@ NODE_ENV = "development"
 description = "Install dependencies and prepare development environment"
 run = [
   "mise install",
-  "pnpm install"
+  "pnpm install",
+  "git config core.hooksPath .githooks"
 ]
 
 [tasks.dev]
