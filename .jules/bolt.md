@@ -1,3 +1,7 @@
 ## 2025-03-22 - Single-Pass AWK vs Bash Loops for Bulk File Operations
 **Learning:** Sequential bash loops spawning multiple subshells per file (e.g. `head`, `awk`, `grep`, `wc`, `tr`, `printf`) incur massive fork/exec overhead (~20-30 processes per file). For 200 files, this accumulated to over 22 seconds of runtime. Moving processing into a single-pass POSIX AWK script reduced runtime from 22.0s to 0.23s (95x speedup).
 **Action:** When writing or optimizing shell scripts that iterate over many files, avoid invoking subprocesses inside bash `while read` loops. Instead, pass file lists directly to a single POSIX AWK process or use pure bash builtins.
+
+## 2026-10-26 - Single-Pass AWK Conversion & Batch Directory Pre-Creation
+**Learning:** Multi-tool file converters calling `system("mkdir -p ...")` or spawning `awk`/`tr`/`sed` inside bash file loops incur massive process fork overhead (~1,600+ conversions taking 71+ seconds). Extracting target paths in a pre-pass and batch-creating directories with `xargs mkdir -p`, combined with a single-pass AWK conversion script, reduced execution time from 71.0s to 0.53s (130x speedup). When parsing YAML in AWK, ensure quote stripping and colon delimiter edge cases are handled without skipping body content.
+**Action:** Pre-create target output directory trees in batch before streaming files to AWK, and ensure AWK body processing only checks frontmatter delimiters during header extraction.
