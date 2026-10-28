@@ -63,7 +63,13 @@ for file in "${raw_files[@]}"; do
     echo "ERROR $file: not a file or does not exist"
     errors=$((errors + 1))
   else
-    valid_files+=("$file")
+    # Prepend ./ to filenames that do not start with / or . so awk does not interpret
+    # filenames containing '=' as variable assignments or leading '-' as options
+    if [[ "$file" != /* && "$file" != .* ]]; then
+      valid_files+=("./$file")
+    else
+      valid_files+=("$file")
+    fi
   fi
 done
 

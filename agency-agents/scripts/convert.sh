@@ -85,13 +85,13 @@ get_field() {
   awk -v f="$field" '
     /^---$/ { fm++; next }
     fm == 1 && $0 ~ "^" f ": " { sub("^" f ": ", ""); print; exit }
-  ' "$file"
+  ' < "$file"
 }
 
 # Strip the leading frontmatter block and return only the body.
 # Usage: get_body <file>
 get_body() {
-  awk 'BEGIN{fm=0} /^---$/{fm++; next} fm>=2{print}' "$1"
+  awk 'BEGIN{fm=0} /^---$/{fm++; next} fm>=2{print}' < "$1"
 }
 
 # Convert a human-readable agent name to a lowercase kebab-case slug.
