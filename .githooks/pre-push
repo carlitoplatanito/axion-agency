@@ -1,4 +1,23 @@
 #!/usr/bin/env bash
-if command -v git-bug >/dev/null 2>&1; then
-  git bug push origin
+set -euo pipefail
+
+# Avoid recursion if git-bug itself triggers a git push
+if [[ -n "${GIT_BUG_PUSHING:-}" ]]; then
+  exit 0
+fi
+
+remote="${1:-origin}"
+
+# Inspect refs being pushed via stdin (format: <local ref> <local sha1> <remote ref> <remote sha1>)
+# Skip if bugs are already part of the pushed ref list to avoid redundant push calls
+has_bug_ref=false
+while read -r _ _ remote_ref _; do
+  if [[ "$remote_ref" =~ ^refs/bugs/ ]]; then
+    has_bug_ref=true
+    break
+  fi
+done
+
+if ! $has_bug_ref && command -v git-bug >/dev/null 2>&1; then
+  GIT_BUG_PUSHING=1 git bug push "$remote" || true
 fi
