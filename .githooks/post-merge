@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 if command -v git-bug >/dev/null 2>&1; then
-  git bug pull origin
+  # Safeguard pull to avoid interrupting merge workflows if network or remote is unreachable
+  git bug pull origin || true
 fi
